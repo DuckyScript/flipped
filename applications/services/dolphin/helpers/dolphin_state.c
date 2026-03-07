@@ -81,13 +81,8 @@ bool dolphin_state_is_levelup(uint32_t icounter) {
 }
 
 uint8_t dolphin_get_level(uint32_t icounter) {
-    if(icounter <= LEVEL2_THRESHOLD) {
-        return 1;
-    } else if(icounter <= LEVEL3_THRESHOLD) {
-        return 2;
-    } else {
-        return 3;
-    }
+    UNUSED(icounter);
+    return 3;
 }
 
 uint32_t dolphin_state_xp_above_last_levelup(uint32_t icounter) {

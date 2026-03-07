@@ -3,7 +3,7 @@
 #include <furi_hal.h>
 #include <storage/storage.h>
 
-#define TAG "Dolphin"
+#define TAG "Buddy"
 
 #define DOLPHIN_LOCK_EVENT_FLAG (0x1)
 #define EVENT_QUEUE_SIZE        (8)
@@ -306,8 +306,13 @@ int32_t dolphin_srv(void* p) {
 
     Dolphin* dolphin = dolphin_alloc();
     furi_record_create(RECORD_DOLPHIN, dolphin);
-
     dolphin_init_state(dolphin);
+
+    // Max Level Cheat: Force Level 3 and Happy Mode
+    dolphin->state->data.icounter = 2000; // Above LEVEL3_THRESHOLD (1800)
+    dolphin->state->data.flags |= DolphinFlagHappyMode;
+    dolphin->state->dirty = true;
+    dolphin_state_save(dolphin->state);
 
     furi_event_loop_subscribe_message_queue(
         dolphin->event_loop,
