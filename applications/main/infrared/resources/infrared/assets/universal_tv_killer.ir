@@ -1,0 +1,33 @@
+Filetype: IR signals file
+Version: 1
+# Universal TV Power Off (Cycling through common brands)
+# Samsung
+name: Power_Samsung
+type: parsed
+protocol: Samsung32
+address: 07 07 00 00
+command: 02 00 00 00
+# LG
+name: Power_LG
+type: parsed
+protocol: NEC
+address: 04 00 00 00
+command: 08 00 00 00
+# Sony
+name: Power_Sony
+type: parsed
+protocol: SIRC
+address: 01 00 00 00
+command: 15 00 00 00
+# Panasonic
+name: Power_Panasonic
+type: parsed
+protocol: Kaseikyo
+address: 01 20 00 00
+command: 3D 00 00 00
+# NEC
+name: Power_NEC
+type: parsed
+protocol: NEC
+address: 00 00 00 00
+command: 02 00 00 00
