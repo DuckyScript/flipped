@@ -8,7 +8,7 @@
 
 const CanvasFontParameters canvas_font_params[FontTotalNumber] = {
     [FontPrimary] = {.leading_default = 12, .leading_min = 11, .height = 8, .descender = 2},
-    [FontSecondary] = {.leading_default = 11, .leading_min = 9, .height = 7, .descender = 2},
+    [FontSecondary] = {.leading_default = 12, .leading_min = 10, .height = 9, .descender = 2},
     [FontKeyboard] = {.leading_default = 11, .leading_min = 9, .height = 7, .descender = 2},
     [FontBigNumbers] = {.leading_default = 18, .leading_min = 16, .height = 15, .descender = 0},
 };
@@ -158,7 +158,7 @@ void canvas_set_font(Canvas* canvas, Font font) {
     if(font == FontPrimary) {
         u8g2_SetFont(&canvas->fb, u8g2_font_helvB08_tr);
     } else if(font == FontSecondary) {
-        u8g2_SetFont(&canvas->fb, u8g2_font_haxrcorp4089_tr);
+        u8g2_SetFont(&canvas->fb, u8g2_font_profont11_mr);
     } else if(font == FontKeyboard) {
         u8g2_SetFont(&canvas->fb, u8g2_font_profont11_mr);
     } else if(font == FontBigNumbers) {

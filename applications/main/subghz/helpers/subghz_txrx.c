@@ -35,6 +35,7 @@ SubGhzTxRx* subghz_txrx_alloc(void) {
     instance->txrx_state = SubGhzTxRxStateSleep;
 
     subghz_txrx_hopper_set_state(instance, SubGhzHopperStateOFF);
+    instance->hopper_idx_preset = 0;
     subghz_txrx_speaker_set_state(instance, SubGhzSpeakerStateDisable);
 
     instance->worker = subghz_worker_alloc();
@@ -384,11 +385,12 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance) {
         // Stay if RSSI is high enough
         if(rssi > -90.0f) {
             instance->hopper_timeout = 10;
+            instance->base_hopper_state = instance->hopper_state;
             instance->hopper_state = SubGhzHopperStateRSSITimeOut;
             return;
         }
     } else {
-        instance->hopper_state = SubGhzHopperStateRunnig;
+        instance->hopper_state = instance->base_hopper_state;
     }
     // Select next frequency
     if(instance->hopper_idx_frequency <
@@ -398,13 +400,32 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance) {
         instance->hopper_idx_frequency = 0;
     }
 
+    if(instance->hopper_state == SubGhzHopperStateProtocol) {
+        if(instance->hopper_idx_preset < subghz_setting_get_preset_count(instance->setting) - 1) {
+            instance->hopper_idx_preset++;
+        } else {
+            instance->hopper_idx_preset = 0;
+        }
+    }
+
     if(instance->txrx_state == SubGhzTxRxStateRx) {
         subghz_txrx_rx_end(instance);
     };
     if(instance->txrx_state == SubGhzTxRxStateIDLE) {
         subghz_receiver_reset(instance->receiver);
-        instance->preset->frequency =
-            subghz_setting_get_hopper_frequency(instance->setting, instance->hopper_idx_frequency);
+        if(instance->hopper_state == SubGhzHopperStateProtocol) {
+            const char* preset_name =
+                subghz_setting_get_preset_name(instance->setting, instance->hopper_idx_preset);
+            subghz_txrx_set_preset(
+                instance,
+                preset_name,
+                instance->preset->frequency,
+                subghz_setting_get_preset_data(instance->setting, instance->hopper_idx_preset),
+                subghz_setting_get_preset_data_size(instance->setting, instance->hopper_idx_preset));
+        } else {
+            instance->preset->frequency = subghz_setting_get_hopper_frequency(
+                instance->setting, instance->hopper_idx_frequency);
+        }
         subghz_txrx_rx(instance, instance->preset->frequency);
     }
 }
@@ -417,18 +438,23 @@ SubGhzHopperState subghz_txrx_hopper_get_state(SubGhzTxRx* instance) {
 void subghz_txrx_hopper_set_state(SubGhzTxRx* instance, SubGhzHopperState state) {
     furi_assert(instance);
     instance->hopper_state = state;
+    if(state != SubGhzHopperStateRSSITimeOut && state != SubGhzHopperStatePause) {
+        instance->base_hopper_state = state;
+    }
 }
 
 void subghz_txrx_hopper_unpause(SubGhzTxRx* instance) {
     furi_assert(instance);
     if(instance->hopper_state == SubGhzHopperStatePause) {
-        instance->hopper_state = SubGhzHopperStateRunnig;
+        instance->hopper_state = instance->base_hopper_state;
     }
 }
 
 void subghz_txrx_hopper_pause(SubGhzTxRx* instance) {
     furi_assert(instance);
-    if(instance->hopper_state == SubGhzHopperStateRunnig) {
+    if(instance->hopper_state != SubGhzHopperStateOFF &&
+       instance->hopper_state != SubGhzHopperStatePause) {
+        instance->base_hopper_state = instance->hopper_state;
         instance->hopper_state = SubGhzHopperStatePause;
     }
 }

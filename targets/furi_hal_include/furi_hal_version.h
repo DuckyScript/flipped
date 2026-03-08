@@ -170,6 +170,12 @@ uint32_t furi_hal_version_get_hw_timestamp(void);
  */
 const char* furi_hal_version_get_name_ptr(void);
 
+/** Set custom name
+ *
+ * @param      name  custom name C-string
+ */
+void furi_hal_version_set_custom_name(const char* name);
+
 /** Get pointer to target device name
  *
  * @return     Hardware Device Name C-string

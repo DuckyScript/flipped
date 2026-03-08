@@ -26,6 +26,7 @@ typedef enum {
     SubGhzHopperStateRunnig,
     SubGhzHopperStatePause,
     SubGhzHopperStateRSSITimeOut,
+    SubGhzHopperStateProtocol, // New Protocol Hopper mode
 } SubGhzHopperState;
 
 /** SubGhzSpeakerState state */

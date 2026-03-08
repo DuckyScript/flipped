@@ -40,14 +40,16 @@ const float raw_theshold_rssi_value[RAW_THRESHOLD_RSSI_COUNT] = {
     -40.0f,
 };
 
-#define HOPPING_COUNT 2
+#define HOPPING_COUNT 3
 const char* const hopping_text[HOPPING_COUNT] = {
     "OFF",
-    "ON",
+    "Freq",
+    "Prot",
 };
 const uint32_t hopping_value[HOPPING_COUNT] = {
     SubGhzHopperStateOFF,
     SubGhzHopperStateRunnig,
+    SubGhzHopperStateProtocol,
 };
 
 #define SPEAKER_COUNT 2

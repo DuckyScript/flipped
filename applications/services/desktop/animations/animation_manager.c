@@ -9,6 +9,7 @@
 
 #include "views/bubble_animation_view.h"
 #include "views/one_shot_animation_view.h"
+#include "views/compromised_view.h"
 #include "animation_storage.h"
 #include "animation_manager.h"
 
@@ -37,6 +38,7 @@ struct AnimationManager {
     FuriPubSubSubscription* pubsub_subscription_dolphin;
     BubbleAnimationView* animation_view;
     OneShotView* one_shot_view;
+    CompromisedView* compromised_view;
     FuriTimer* idle_animation_timer;
     StorageAnimation* current_animation;
     AnimationManagerInteractCallback interact_callback;
@@ -155,6 +157,12 @@ static void animation_manager_interact_callback(void* context) {
     }
 }
 
+static void animation_manager_compromised_done_callback(void* context) {
+    furi_assert(context);
+    AnimationManager* animation_manager = context;
+    animation_manager_interact_process(animation_manager);
+}
+
 /* reaction to animation_manager->check_blocking_callback() */
 void animation_manager_check_blocking_process(AnimationManager* animation_manager) {
     furi_assert(animation_manager);
@@ -201,8 +209,8 @@ bool animation_manager_interact_process(AnimationManager* animation_manager) {
         furi_record_close(RECORD_DOLPHIN);
     } else if(animation_manager->levelup_active) {
         animation_manager->levelup_active = false;
-        animation_manager_start_new_idle(animation_manager);
         animation_manager_switch_to_animation_view(animation_manager);
+        animation_manager_start_new_idle(animation_manager);
     } else if(animation_manager->state == AnimationManagerStateBlocked) {
         bool blocked = animation_manager_check_blocking(animation_manager);
 
@@ -329,6 +337,12 @@ AnimationManager* animation_manager_alloc(void) {
         animation_manager_start_new_idle(animation_manager);
     }
 
+    animation_manager->compromised_view = compromised_view_alloc();
+    compromised_view_set_done_callback(
+        animation_manager->compromised_view,
+        animation_manager_compromised_done_callback,
+        animation_manager);
+
     return animation_manager;
 }
 
@@ -350,6 +364,7 @@ void animation_manager_free(AnimationManager* animation_manager) {
     view_stack_remove_view(animation_manager->view_stack, animation_view);
     bubble_animation_view_free(animation_manager->animation_view);
     furi_timer_free(animation_manager->idle_animation_timer);
+    compromised_view_free(animation_manager->compromised_view);
 }
 
 View* animation_manager_get_animation_view(AnimationManager* animation_manager) {
@@ -572,34 +587,19 @@ void animation_manager_load_and_continue_animation(AnimationManager* animation_m
 static void animation_manager_switch_to_one_shot_view(AnimationManager* animation_manager) {
     furi_assert(animation_manager);
     furi_assert(!animation_manager->one_shot_view);
-    Dolphin* dolphin = furi_record_open(RECORD_DOLPHIN);
-    DolphinStats stats = dolphin_stats(dolphin);
-    furi_record_close(RECORD_DOLPHIN);
 
-    animation_manager->one_shot_view = one_shot_view_alloc();
-    one_shot_view_set_interact_callback(
-        animation_manager->one_shot_view, animation_manager_interact_callback, animation_manager);
     View* prev_view = bubble_animation_get_view(animation_manager->animation_view);
-    View* next_view = one_shot_view_get_view(animation_manager->one_shot_view);
+    View* next_view = compromised_view_get_view(animation_manager->compromised_view);
     view_stack_remove_view(animation_manager->view_stack, prev_view);
     view_stack_add_view(animation_manager->view_stack, next_view);
-    if(stats.level == 1) {
-        one_shot_view_start_animation(animation_manager->one_shot_view, &A_Levelup1_128x64);
-    } else if(stats.level == 2) {
-        one_shot_view_start_animation(animation_manager->one_shot_view, &A_Levelup2_128x64);
-    } else {
-        furi_crash();
-    }
+    compromised_view_start(animation_manager->compromised_view);
 }
 
 static void animation_manager_switch_to_animation_view(AnimationManager* animation_manager) {
     furi_assert(animation_manager);
-    furi_assert(animation_manager->one_shot_view);
 
-    View* prev_view = one_shot_view_get_view(animation_manager->one_shot_view);
+    View* prev_view = compromised_view_get_view(animation_manager->compromised_view);
     View* next_view = bubble_animation_get_view(animation_manager->animation_view);
     view_stack_remove_view(animation_manager->view_stack, prev_view);
     view_stack_add_view(animation_manager->view_stack, next_view);
-    one_shot_view_free(animation_manager->one_shot_view);
-    animation_manager->one_shot_view = NULL;
 }

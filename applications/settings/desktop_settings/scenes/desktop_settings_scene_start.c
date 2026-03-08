@@ -10,6 +10,7 @@ typedef enum {
     DesktopSettingsClockDisplay,
     DesktopSettingsFavoriteApps,
     DesktopSettingsHappyMode,
+    DesktopSettingsDeviceName,
 } DesktopSettingsEntry;
 
 #define AUTO_LOCK_DELAY_COUNT 6
@@ -90,6 +91,8 @@ void desktop_settings_scene_start_on_enter(void* context) {
 
     variable_item_list_add(variable_item_list, "Happy Mode", 1, NULL, NULL);
 
+    variable_item_list_add(variable_item_list, "Device Name", 1, NULL, NULL);
+
     variable_item_list_set_enter_callback(
         variable_item_list, desktop_settings_scene_start_var_list_enter_callback, app);
 
@@ -112,6 +115,10 @@ bool desktop_settings_scene_start_on_event(void* context, SceneManagerEvent even
 
         case DesktopSettingsHappyMode:
             scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneHappyMode);
+            break;
+
+        case DesktopSettingsDeviceName:
+            scene_manager_next_scene(app->scene_manager, DesktopSettingsAppSceneDeviceName);
             break;
 
         default:

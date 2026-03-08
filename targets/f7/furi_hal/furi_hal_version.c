@@ -84,6 +84,7 @@ typedef struct {
     uint8_t board_display; /** Board display */
 
     char name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH]; /** \0 terminated name */
+    char custom_name[FURI_HAL_VERSION_ARRAY_NAME_LENGTH]; /** User-set custom name */
     char device_name[FURI_HAL_VERSION_DEVICE_NAME_LENGTH]; /** device name for special needs */
     uint8_t ble_mac[6];
 } FuriHalVersion;
@@ -103,7 +104,16 @@ static void furi_hal_version_set_name(const char* name) {
     }
 
     furi_hal_version.device_name[0] = AD_TYPE_COMPLETE_LOCAL_NAME;
+}
 
+void furi_hal_version_set_custom_name(const char* name) {
+    if(name != NULL && strlen(name) > 0) {
+        strlcpy(furi_hal_version.custom_name, name, FURI_HAL_VERSION_ARRAY_NAME_LENGTH);
+    } else {
+        furi_hal_version.custom_name[0] = '\0';
+    }
+    furi_hal_version_set_name(furi_hal_version.name);
+}
     // BLE Mac address
     uint32_t udn = LL_FLASH_GetUDN();
     uint32_t company_id = LL_FLASH_GetSTCompanyID();
@@ -267,6 +277,9 @@ uint32_t furi_hal_version_get_hw_timestamp(void) {
 }
 
 const char* furi_hal_version_get_name_ptr(void) {
+    if(furi_hal_version.custom_name[0] != '\0') {
+        return furi_hal_version.custom_name;
+    }
     return *furi_hal_version.name == 0x00 ? NULL : furi_hal_version.name;
 }
 
