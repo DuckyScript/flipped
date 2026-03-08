@@ -1,0 +1,9 @@
+App(
+    appid="custom_ble_beacon",
+    name="Custom BLE Beacon",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="custom_ble_beacon_app",
+    requires=["gui", "bt"],
+    stack_size=1 * 1024,
+    fap_category="Bluetooth",
+)

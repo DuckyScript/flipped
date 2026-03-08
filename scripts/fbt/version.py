@@ -5,7 +5,10 @@ from functools import cache
 
 @cache
 def get_git_commit_unix_timestamp():
-    return int(subprocess.check_output(["git", "show", "-s", "--format=%ct"]))
+    try:
+        return int(subprocess.check_output(["git", "show", "-s", "--format=%ct"]))
+    except Exception:
+        return int(datetime.datetime.now().timestamp())
 
 
 @cache

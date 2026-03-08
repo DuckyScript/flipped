@@ -108,7 +108,8 @@ def _proto_ver_generator(target, source, env):
         git_describe = describe()
 
     if not git_describe:
-        raise StopError("Failed to process git tags for protobuf versioning")
+        print(fg.boldyellow("Git: describe failed, using fallback version 0.1"))
+        git_describe = "0.1"
 
     git_major, git_minor = git_describe.split(".")
     version_file_data = (
