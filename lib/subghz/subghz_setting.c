@@ -35,18 +35,33 @@ static const uint32_t subghz_frequency_list[] = {
 };
 
 static const uint32_t subghz_hopper_frequency_list[] = {
+    281000000,
+    290000000,
     300000000,
+    303875000,
     310000000,
     315000000,
     318000000,
+    330000000,
     345000000,
+    350000000,
+    378000000,
     390000000,
+    400000000,
     418000000,
     433920000,
+    440000000,
     450000000,
+    464000000,
+    779000000,
+    800000000,
+    840000000,
     868350000,
+    900000000,
     915000000,
     925000000,
+    940000000,
+    962000000,
     0,
 };
 
@@ -71,14 +86,22 @@ static const uint32_t subghz_frequency_list_region_eu_ru[] = {
     0,
 };
 static const uint32_t subghz_hopper_frequency_list_region_eu_ru[] = {
+    281000000,
     300000000,
     310000000,
     315000000,
     318000000,
+    345000000,
     390000000,
+    418000000,
     433920000,
+    450000000,
+    779000000,
+    840000000,
     868350000,
+    900000000,
     915000000,
+    925000000,
     0,
 };
 
@@ -103,14 +126,23 @@ static const uint32_t subghz_frequency_list_region_us_ca_au[] = {
     0,
 };
 static const uint32_t subghz_hopper_frequency_list_region_us_ca_au[] = {
+    281000000,
     300000000,
+    303875000,
     310000000,
     315000000,
     318000000,
+    345000000,
     390000000,
+    418000000,
     433920000,
+    450000000,
+    779000000,
+    840000000,
     868350000,
+    900000000,
     915000000,
+    925000000,
     0,
 };
 
@@ -135,14 +167,22 @@ static const uint32_t subghz_frequency_list_region_jp[] = {
     0,
 };
 static const uint32_t subghz_hopper_frequency_list_region_jp[] = {
+    281000000,
     300000000,
     310000000,
     315000000,
     318000000,
+    345000000,
     390000000,
+    418000000,
     433920000,
+    450000000,
+    779000000,
+    840000000,
     868350000,
+    900000000,
     920500000,
+    925000000,
     0,
 };
 
@@ -254,6 +294,10 @@ static void subghz_setting_load_default_region(
         instance, "FM238", subghz_device_cc1101_preset_2fsk_dev2_38khz_async_regs);
     subghz_setting_load_default_preset(
         instance, "FM476", subghz_device_cc1101_preset_2fsk_dev47_6khz_async_regs);
+    subghz_setting_load_default_preset(
+        instance, "MSK99", subghz_device_cc1101_preset_msk_99_97kb_async_regs);
+    subghz_setting_load_default_preset(
+        instance, "GFSK9", subghz_device_cc1101_preset_gfsk_9_99kb_async_regs);
 }
 
 void subghz_setting_load_default(SubGhzSetting* instance) {

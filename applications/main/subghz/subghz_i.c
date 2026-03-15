@@ -58,8 +58,8 @@ void subghz_dialog_message_show_only_rx(SubGhz* subghz) {
     DialogsApp* dialogs = subghz->dialogs;
     DialogMessage* message = dialog_message_alloc();
 
-    const char* header_text = "Transmission is Blocked!";
-    const char* message_text = "Transmission on\nthis frequency is\nrestricted in your\nregion";
+    const char* header_text = "TX Unavailable";
+    const char* message_text = "Cannot transmit\non this frequency\nwith current\nconfiguration";
     if(!furi_hal_region_is_provisioned()) {
         header_text = "Firmware update needed";
         message_text = "Please update\nfirmware before\nusing this feature\nflipp.dev/upd";

@@ -64,7 +64,7 @@ const uint8_t subghz_device_cc1101_preset_ook_270khz_async_regs[] = {
 
     //ook_async_patable[8]
     0x00,
-    0xC0, // 12dBm 0xC0, 10dBm 0xC5, 7dBm 0xCD, 5dBm 0x86, 0dBm 0x50, -6dBm 0x37, -10dBm 0x26, -15dBm 0x1D, -20dBm 0x17, -30dBm 0x03
+    0xC0, // Max power: 12dBm
     0x00,
     0x00,
     0x00,
@@ -140,7 +140,7 @@ const uint8_t subghz_device_cc1101_preset_ook_650khz_async_regs[] = {
 
     //ook_async_patable[8]
     0x00,
-    0xC0, // 12dBm 0xC0, 10dBm 0xC5, 7dBm 0xCD, 5dBm 0x86, 0dBm 0x50, -6dBm 0x37, -10dBm 0x26, -15dBm 0x1D, -20dBm 0x17, -30dBm 0x03
+    0xC0, // Max power: 12dBm
     0x00,
     0x00,
     0x00,

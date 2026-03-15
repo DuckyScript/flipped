@@ -121,6 +121,10 @@ const char* subghz_txrx_get_preset_name(SubGhzTxRx* instance, const char* preset
         preset_name = "FM238";
     } else if(!strcmp(preset, "FuriHalSubGhzPreset2FSKDev476Async")) {
         preset_name = "FM476";
+    } else if(!strcmp(preset, "FuriHalSubGhzPresetMSK99_97KbAsync")) {
+        preset_name = "MSK99";
+    } else if(!strcmp(preset, "FuriHalSubGhzPresetGFSK9_99KbAsync")) {
+        preset_name = "GFSK9";
     } else if(!strcmp(preset, "FuriHalSubGhzPresetCustom")) {
         preset_name = "CUSTOM";
     } else {
@@ -230,7 +234,7 @@ SubGhzTxRxStartTxState subghz_txrx_tx_start(SubGhzTxRx* instance, FlipperFormat*
 
     SubGhzTxRxStartTxState ret = SubGhzTxRxStartTxStateErrorParserOthers;
     FuriString* temp_str = furi_string_alloc();
-    uint32_t repeat = 200;
+    uint32_t repeat = 500;
     do {
         if(!flipper_format_rewind(flipper_format)) {
             FURI_LOG_E(TAG, "Rewind error");
@@ -383,7 +387,7 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance) {
         rssi = subghz_devices_get_rssi(instance->radio_device);
 
         // Stay if RSSI is high enough
-        if(rssi > -90.0f) {
+        if(rssi > -95.0f) {
             instance->hopper_timeout = 10;
             instance->base_hopper_state = instance->hopper_state;
             instance->hopper_state = SubGhzHopperStateRSSITimeOut;
@@ -535,11 +539,8 @@ bool subghz_txrx_protocol_is_serializable(SubGhzTxRx* instance) {
 
 bool subghz_txrx_protocol_is_transmittable(SubGhzTxRx* instance, bool check_type) {
     furi_assert(instance);
+    UNUSED(check_type);
     const SubGhzProtocol* protocol = instance->decoder_result->protocol;
-    if(check_type) {
-        return ((protocol->flag & SubGhzProtocolFlag_Send) == SubGhzProtocolFlag_Send) &&
-               protocol->encoder->deserialize && protocol->type == SubGhzProtocolTypeStatic;
-    }
     return ((protocol->flag & SubGhzProtocolFlag_Send) == SubGhzProtocolFlag_Send) &&
            protocol->encoder->deserialize;
 }

@@ -9,8 +9,8 @@ const FuriHalRegion furi_hal_region_zero = {
         {
             .start = 0,
             .end = 1000000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
     }};
 
@@ -21,20 +21,20 @@ const FuriHalRegion furi_hal_region_eu_ru = {
         {
             .start = 281000000,
             .end = 361000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 378000000,
             .end = 481000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 749000000,
             .end = 962000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         }}};
 
 const FuriHalRegion furi_hal_region_us_ca_au = {
@@ -44,20 +44,20 @@ const FuriHalRegion furi_hal_region_us_ca_au = {
         {
             .start = 281000000,
             .end = 361000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 378000000,
             .end = 481000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 749000000,
             .end = 962000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         }}};
 
 const FuriHalRegion furi_hal_region_jp = {
@@ -67,20 +67,20 @@ const FuriHalRegion furi_hal_region_jp = {
         {
             .start = 281000000,
             .end = 361000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 378000000,
             .end = 481000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         },
         {
             .start = 749000000,
             .end = 962000000,
-            .power_limit = 12,
-            .duty_cycle = 50,
+            .power_limit = 20,
+            .duty_cycle = 100,
         }}};
 
 static const FuriHalRegion* const furi_hal_static_regions[] = {

@@ -10,7 +10,7 @@
 
 #define TAG "SubGhzProtocolRaw"
 
-#define SUBGHZ_DOWNLOAD_MAX_SIZE 512
+#define SUBGHZ_DOWNLOAD_MAX_SIZE 4096
 
 static const SubGhzBlockConst subghz_protocol_raw_const = {
     .te_short = 50,
