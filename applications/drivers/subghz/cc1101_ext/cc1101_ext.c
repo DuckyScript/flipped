@@ -462,9 +462,9 @@ uint8_t subghz_device_cc1101_ext_get_lqi(void) {
 }
 
 bool subghz_device_cc1101_ext_is_frequency_valid(uint32_t value) {
-    if(!(value >= 299999755 && value <= 348000335) &&
-       !(value >= 386999938 && value <= 464000000) &&
-       !(value >= 778999847 && value <= 928000000)) {
+    if(!(value >= 281000000 && value <= 361000000) &&
+       !(value >= 378000000 && value <= 481000000) &&
+       !(value >= 749000000 && value <= 962000000)) {
         return false;
     }
 

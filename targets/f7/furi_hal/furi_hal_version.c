@@ -114,6 +114,8 @@ void furi_hal_version_set_custom_name(const char* name) {
     }
     furi_hal_version_set_name(furi_hal_version.name);
 }
+
+static void furi_hal_version_load_ble_mac(void) {
     // BLE Mac address
     uint32_t udn = LL_FLASH_GetUDN();
     uint32_t company_id = LL_FLASH_GetSTCompanyID();
@@ -199,6 +201,8 @@ void furi_hal_version_init(void) {
     default:
         furi_crash();
     }
+
+    furi_hal_version_load_ble_mac();
 
     furi_hal_rtc_set_register(FuriHalRtcRegisterVersion, (uint32_t)version_get());
 
