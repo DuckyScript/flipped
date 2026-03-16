@@ -15,6 +15,18 @@
 #define CMD_BUF_SIZE 128
 #define OUTPUT_BUF_SIZE 4096
 #define DIR_NAME_MAX 256
+#define WIFI_MAX_URL_LEN 512
+
+// Package manager paths
+#define PKG_INSTALL_PATH EXT_PATH("app_install")
+#define PKG_MANIFEST PKG_INSTALL_PATH "/manifest.txt"
+#define PKG_APPS_DIR EXT_PATH("apps")
+#define PKG_MAX_APPS 32
+#define PKG_MAX_NAME 64
+#define PKG_MAX_FILE 128
+#define PKG_MAX_CAT 32
+#define PKG_MAX_DESC 128
+#define PKG_MANIFEST_LINE 384
 
 // WiFi UART settings (shared protocol with App Store)
 #define WIFI_UART_BAUD 115200
@@ -42,6 +54,20 @@ typedef struct {
 } WifiState;
 
 typedef struct {
+    char name[PKG_MAX_NAME];
+    char filename[PKG_MAX_FILE];
+    char category[PKG_MAX_CAT];
+    char description[PKG_MAX_DESC];
+} PkgEntry;
+
+typedef struct {
+    PkgEntry apps[PKG_MAX_APPS];
+    uint32_t count;
+    bool loaded;
+    char repo_url[WIFI_MAX_URL_LEN];
+} PkgManager;
+
+typedef struct {
     Gui* gui;
     Storage* storage;
     NotificationApp* notifications;
@@ -55,6 +81,7 @@ typedef struct {
     char cwd[DIR_NAME_MAX];
 
     WifiState wifi;
+    PkgManager pkg;
 } TerminalApp;
 
 // --- WiFi UART ---
@@ -219,6 +246,7 @@ static void cmd_help(TerminalApp* app) {
     terminal_println(app, " pass <p>   - set WiFi pass");
     terminal_println(app, " connect    - join WiFi");
     terminal_println(app, " wget <url> <file>");
+    terminal_println(app, " pkg         - package manager");
 }
 
 static void cmd_ls(TerminalApp* app, const char* path) {
@@ -662,6 +690,531 @@ static void cmd_wget(TerminalApp* app, const char* args) {
     }
 }
 
+// --- Package Manager ---
+
+static void pkg_trim(char* str) {
+    size_t len = strlen(str);
+    while(len > 0 && (str[len - 1] == '\n' || str[len - 1] == '\r' || str[len - 1] == ' ')) {
+        str[--len] = '\0';
+    }
+}
+
+static void pkg_load_repo_url(TerminalApp* app) {
+    const char* default_url =
+        "https://raw.githubusercontent.com/DuckyScript/flipped/dev/app_install";
+
+    File* file = storage_file_alloc(app->storage);
+    const char* config_path = PKG_INSTALL_PATH "/repo_url.txt";
+
+    if(storage_file_open(file, config_path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        char url_buf[WIFI_MAX_URL_LEN];
+        size_t bytes = storage_file_read(file, url_buf, sizeof(url_buf) - 1);
+        if(bytes > 0) {
+            url_buf[bytes] = '\0';
+            pkg_trim(url_buf);
+            if(strlen(url_buf) > 0) {
+                strlcpy(app->pkg.repo_url, url_buf, sizeof(app->pkg.repo_url));
+                storage_file_close(file);
+                storage_file_free(file);
+                return;
+            }
+        }
+        storage_file_close(file);
+    }
+    storage_file_free(file);
+    strlcpy(app->pkg.repo_url, default_url, sizeof(app->pkg.repo_url));
+}
+
+static bool pkg_parse_manifest(TerminalApp* app) {
+    app->pkg.count = 0;
+
+    File* file = storage_file_alloc(app->storage);
+    if(!storage_file_open(file, PKG_MANIFEST, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        storage_file_free(file);
+        return false;
+    }
+
+    char line[PKG_MANIFEST_LINE];
+    size_t line_pos = 0;
+    char ch;
+
+    while(app->pkg.count < PKG_MAX_APPS) {
+        size_t bytes_read = storage_file_read(file, &ch, 1);
+        if(bytes_read == 0) {
+            if(line_pos > 0) {
+                line[line_pos] = '\0';
+            } else {
+                break;
+            }
+        } else if(ch == '\n') {
+            line[line_pos] = '\0';
+            line_pos = 0;
+        } else {
+            if(line_pos < PKG_MANIFEST_LINE - 1) {
+                line[line_pos++] = ch;
+            }
+            if(bytes_read > 0) continue;
+        }
+
+        if(line[0] == '#' || line[0] == '\0') {
+            if(bytes_read == 0) break;
+            continue;
+        }
+
+        // Parse: name|filename|category|description
+        PkgEntry* entry = &app->pkg.apps[app->pkg.count];
+        char* ptr = line;
+        char* field_start = ptr;
+        int field = 0;
+
+        while(*ptr && field < 4) {
+            if(*ptr == '|' || *(ptr + 1) == '\0') {
+                if(*(ptr + 1) == '\0' && *ptr != '|') ptr++;
+                char saved = *ptr;
+                *ptr = '\0';
+
+                switch(field) {
+                case 0:
+                    strlcpy(entry->name, field_start, PKG_MAX_NAME);
+                    pkg_trim(entry->name);
+                    break;
+                case 1:
+                    strlcpy(entry->filename, field_start, PKG_MAX_FILE);
+                    pkg_trim(entry->filename);
+                    break;
+                case 2:
+                    strlcpy(entry->category, field_start, PKG_MAX_CAT);
+                    pkg_trim(entry->category);
+                    break;
+                case 3:
+                    strlcpy(entry->description, field_start, PKG_MAX_DESC);
+                    pkg_trim(entry->description);
+                    break;
+                }
+
+                *ptr = saved;
+                field_start = ptr + 1;
+                field++;
+            }
+            ptr++;
+        }
+
+        if(field >= 3 && strlen(entry->name) > 0 && strlen(entry->filename) > 0) {
+            app->pkg.count++;
+        }
+
+        if(bytes_read == 0) break;
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+    app->pkg.loaded = true;
+    return true;
+}
+
+static bool pkg_is_installed(TerminalApp* app, PkgEntry* entry) {
+    char path[DIR_NAME_MAX];
+    snprintf(path, sizeof(path), PKG_APPS_DIR "/%s/%s", entry->category, entry->filename);
+    FileInfo finfo;
+    return storage_common_stat(app->storage, path, &finfo) == FSE_OK;
+}
+
+static bool pkg_has_local(TerminalApp* app, PkgEntry* entry) {
+    char path[DIR_NAME_MAX];
+    snprintf(path, sizeof(path), PKG_INSTALL_PATH "/%s", entry->filename);
+    FileInfo finfo;
+    return storage_common_stat(app->storage, path, &finfo) == FSE_OK;
+}
+
+// Download a file via WiFi (reuses wifi protocol)
+static bool pkg_wifi_download(TerminalApp* app, const char* url, const char* dest) {
+    if(!app->wifi.connected) return false;
+
+    wifi_flush(&app->wifi);
+    char cmd[640];
+    snprintf(cmd, sizeof(cmd), "DOWNLOAD %s\r\n", url);
+    wifi_send(&app->wifi, cmd);
+
+    char resp[128];
+    size_t len = wifi_read_line(&app->wifi, resp, sizeof(resp), WIFI_CMD_TIMEOUT_MS);
+    if(len == 0 || strncmp(resp, "SIZE:", 5) != 0) {
+        if(strncmp(resp, "ERROR:", 6) == 0) {
+            FURI_LOG_E(TAG, "Download error: %s", resp + 6);
+        }
+        return false;
+    }
+
+    uint32_t file_size = strtoul(resp + 5, NULL, 10);
+    if(file_size == 0 || file_size > 1024 * 1024) return false;
+
+    File* file = storage_file_alloc(app->storage);
+    if(!storage_file_open(file, dest, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+        storage_file_free(file);
+        return false;
+    }
+
+    uint32_t remaining = file_size;
+    bool ok = true;
+
+    while(remaining > 0) {
+        uint8_t chunk[512];
+        size_t to_read = remaining > sizeof(chunk) ? sizeof(chunk) : remaining;
+        uint32_t start = furi_get_tick();
+        size_t total_chunk = 0;
+
+        while(total_chunk < to_read) {
+            uint32_t elapsed =
+                (furi_get_tick() - start) * 1000 / furi_kernel_get_tick_frequency();
+            if(elapsed >= 30000) {
+                ok = false;
+                break;
+            }
+            size_t got = furi_stream_buffer_receive(
+                app->wifi.rx_stream, chunk + total_chunk, to_read - total_chunk, 50);
+            total_chunk += got;
+        }
+        if(!ok) break;
+
+        if(storage_file_write(file, chunk, total_chunk) != total_chunk) {
+            ok = false;
+            break;
+        }
+        remaining -= total_chunk;
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+
+    if(!ok) {
+        storage_simply_remove(app->storage, dest);
+        return false;
+    }
+
+    // Consume trailing DONE
+    wifi_read_line(&app->wifi, resp, sizeof(resp), 2000);
+    return true;
+}
+
+static PkgEntry* pkg_find(TerminalApp* app, const char* name) {
+    for(uint32_t i = 0; i < app->pkg.count; i++) {
+        if(strcasecmp(app->pkg.apps[i].name, name) == 0) {
+            return &app->pkg.apps[i];
+        }
+        // Also match by filename without extension
+        char fname[PKG_MAX_FILE];
+        strlcpy(fname, app->pkg.apps[i].filename, sizeof(fname));
+        char* dot = strrchr(fname, '.');
+        if(dot) *dot = '\0';
+        if(strcasecmp(fname, name) == 0) {
+            return &app->pkg.apps[i];
+        }
+    }
+    return NULL;
+}
+
+static void cmd_pkg(TerminalApp* app, const char* args) {
+    if(!args || strlen(args) == 0) {
+        terminal_println(app, "Package Manager");
+        terminal_println(app, "usage: pkg <command>");
+        terminal_println(app, "");
+        terminal_println(app, " pkg list     - list all packages");
+        terminal_println(app, " pkg search <q> - search packages");
+        terminal_println(app, " pkg info <n> - package details");
+        terminal_println(app, " pkg install <n> - install pkg");
+        terminal_println(app, " pkg remove <n>  - remove pkg");
+        terminal_println(app, " pkg update   - refresh catalog");
+        terminal_println(app, " pkg upgrade  - install all");
+        terminal_println(app, " pkg repo [url] - show/set repo");
+        return;
+    }
+
+    // Parse subcommand
+    char subcmd[32];
+    const char* subargs = NULL;
+    const char* space = strchr(args, ' ');
+    if(space) {
+        size_t slen = space - args;
+        if(slen >= sizeof(subcmd)) slen = sizeof(subcmd) - 1;
+        memcpy(subcmd, args, slen);
+        subcmd[slen] = '\0';
+        subargs = space + 1;
+        while(*subargs == ' ') subargs++;
+        if(*subargs == '\0') subargs = NULL;
+    } else {
+        strlcpy(subcmd, args, sizeof(subcmd));
+    }
+
+    // Ensure manifest is loaded
+    if(!app->pkg.loaded) {
+        pkg_parse_manifest(app);
+    }
+
+    if(strcmp(subcmd, "list") == 0 || strcmp(subcmd, "ls") == 0) {
+        if(app->pkg.count == 0) {
+            terminal_println(app, "No packages in catalog");
+            terminal_println(app, "Run 'pkg update' to refresh");
+            return;
+        }
+        for(uint32_t i = 0; i < app->pkg.count; i++) {
+            PkgEntry* e = &app->pkg.apps[i];
+            bool installed = pkg_is_installed(app, e);
+            terminal_printf(
+                app,
+                " %s %s [%s]\n",
+                installed ? "[*]" : "[ ]",
+                e->name,
+                e->category);
+        }
+        terminal_printf(app, "%lu packages\n", app->pkg.count);
+
+    } else if(strcmp(subcmd, "search") == 0 || strcmp(subcmd, "find") == 0) {
+        if(!subargs) {
+            terminal_println(app, "usage: pkg search <query>");
+            return;
+        }
+        uint32_t found = 0;
+        for(uint32_t i = 0; i < app->pkg.count; i++) {
+            PkgEntry* e = &app->pkg.apps[i];
+            // Case-insensitive search in name, category, description
+            bool match = false;
+            // Simple case-insensitive substring search
+            FuriString* haystack = furi_string_alloc();
+            FuriString* needle = furi_string_alloc_set_str(subargs);
+
+            furi_string_set_str(haystack, e->name);
+            if(furi_string_search_str(haystack, subargs, 0) != FURI_STRING_FAILURE) match = true;
+            furi_string_set_str(haystack, e->category);
+            if(furi_string_search_str(haystack, subargs, 0) != FURI_STRING_FAILURE) match = true;
+            furi_string_set_str(haystack, e->description);
+            if(furi_string_search_str(haystack, subargs, 0) != FURI_STRING_FAILURE) match = true;
+
+            furi_string_free(haystack);
+            furi_string_free(needle);
+
+            if(match) {
+                bool installed = pkg_is_installed(app, e);
+                terminal_printf(
+                    app,
+                    " %s %s - %s\n",
+                    installed ? "[*]" : "[ ]",
+                    e->name,
+                    e->description);
+                found++;
+            }
+        }
+        if(found == 0) {
+            terminal_printf(app, "No packages matching '%s'\n", subargs);
+        } else {
+            terminal_printf(app, "%lu found\n", found);
+        }
+
+    } else if(strcmp(subcmd, "info") == 0) {
+        if(!subargs) {
+            terminal_println(app, "usage: pkg info <name>");
+            return;
+        }
+        PkgEntry* e = pkg_find(app, subargs);
+        if(!e) {
+            terminal_printf(app, "Package '%s' not found\n", subargs);
+            return;
+        }
+        bool installed = pkg_is_installed(app, e);
+        bool local = pkg_has_local(app, e);
+        terminal_printf(app, "Name: %s\n", e->name);
+        terminal_printf(app, "File: %s\n", e->filename);
+        terminal_printf(app, "Category: %s\n", e->category);
+        terminal_printf(app, "Desc: %s\n", e->description);
+        terminal_printf(app, "Installed: %s\n", installed ? "yes" : "no");
+        terminal_printf(app, "Cached: %s\n", local ? "yes" : "no");
+
+    } else if(strcmp(subcmd, "install") == 0 || strcmp(subcmd, "i") == 0) {
+        if(!subargs) {
+            terminal_println(app, "usage: pkg install <name>");
+            return;
+        }
+        PkgEntry* e = pkg_find(app, subargs);
+        if(!e) {
+            terminal_printf(app, "Package '%s' not found\n", subargs);
+            terminal_println(app, "Run 'pkg list' to see available");
+            return;
+        }
+
+        bool has_local = pkg_has_local(app, e);
+
+        // If no local .fap, try WiFi download
+        if(!has_local) {
+            if(!app->wifi.connected) {
+                terminal_println(app, "No local .fap and no WiFi");
+                terminal_println(app, "Copy .fap to SD or use WiFi");
+                return;
+            }
+
+            terminal_printf(app, "Downloading %s...\n", e->filename);
+            char url[WIFI_MAX_URL_LEN];
+            snprintf(url, sizeof(url), "%s/%s", app->pkg.repo_url, e->filename);
+
+            char local_path[DIR_NAME_MAX];
+            snprintf(local_path, sizeof(local_path), PKG_INSTALL_PATH "/%s", e->filename);
+            storage_simply_mkdir(app->storage, PKG_INSTALL_PATH);
+
+            if(!pkg_wifi_download(app, url, local_path)) {
+                terminal_println(app, "Download failed");
+                return;
+            }
+            terminal_println(app, "Downloaded");
+        }
+
+        // Copy from app_install to apps/<category>/
+        char src[DIR_NAME_MAX];
+        snprintf(src, sizeof(src), PKG_INSTALL_PATH "/%s", e->filename);
+
+        char dest_dir[DIR_NAME_MAX];
+        snprintf(dest_dir, sizeof(dest_dir), PKG_APPS_DIR "/%s", e->category);
+        storage_simply_mkdir(app->storage, PKG_APPS_DIR);
+        storage_simply_mkdir(app->storage, dest_dir);
+
+        char dest[DIR_NAME_MAX];
+        snprintf(dest, sizeof(dest), "%s/%s", dest_dir, e->filename);
+        storage_simply_remove(app->storage, dest);
+
+        FS_Error err = storage_common_copy(app->storage, src, dest);
+        if(err == FSE_OK) {
+            terminal_printf(app, "Installed %s\n", e->name);
+        } else {
+            terminal_printf(app, "Install failed (err %d)\n", err);
+        }
+
+    } else if(strcmp(subcmd, "remove") == 0 || strcmp(subcmd, "rm") == 0 ||
+              strcmp(subcmd, "uninstall") == 0) {
+        if(!subargs) {
+            terminal_println(app, "usage: pkg remove <name>");
+            return;
+        }
+        PkgEntry* e = pkg_find(app, subargs);
+        if(!e) {
+            terminal_printf(app, "Package '%s' not found\n", subargs);
+            return;
+        }
+        if(!pkg_is_installed(app, e)) {
+            terminal_printf(app, "%s is not installed\n", e->name);
+            return;
+        }
+
+        char path[DIR_NAME_MAX];
+        snprintf(path, sizeof(path), PKG_APPS_DIR "/%s/%s", e->category, e->filename);
+        if(storage_simply_remove(app->storage, path)) {
+            terminal_printf(app, "Removed %s\n", e->name);
+        } else {
+            terminal_println(app, "Remove failed");
+        }
+
+    } else if(strcmp(subcmd, "update") == 0 || strcmp(subcmd, "refresh") == 0) {
+        if(!app->wifi.connected) {
+            terminal_println(app, "WiFi not connected");
+            terminal_println(app, "Use 'connect' first");
+            // Try loading local manifest instead
+            if(pkg_parse_manifest(app)) {
+                terminal_printf(app, "Loaded %lu local packages\n", app->pkg.count);
+            }
+            return;
+        }
+
+        terminal_println(app, "Updating catalog...");
+        char url[WIFI_MAX_URL_LEN];
+        snprintf(url, sizeof(url), "%s/manifest.txt", app->pkg.repo_url);
+        storage_simply_mkdir(app->storage, PKG_INSTALL_PATH);
+
+        if(pkg_wifi_download(app, url, PKG_MANIFEST)) {
+            app->pkg.loaded = false;
+            pkg_parse_manifest(app);
+            terminal_printf(app, "Catalog updated: %lu packages\n", app->pkg.count);
+        } else {
+            terminal_println(app, "Update failed");
+        }
+
+    } else if(strcmp(subcmd, "upgrade") == 0) {
+        if(app->pkg.count == 0) {
+            terminal_println(app, "No packages. Run 'pkg update'");
+            return;
+        }
+
+        uint32_t installed = 0;
+        uint32_t failed = 0;
+
+        for(uint32_t i = 0; i < app->pkg.count; i++) {
+            PkgEntry* e = &app->pkg.apps[i];
+            bool has_local = pkg_has_local(app, e);
+
+            // Download if missing and WiFi available
+            if(!has_local && app->wifi.connected) {
+                terminal_printf(app, "Downloading %s...\n", e->name);
+                char url[WIFI_MAX_URL_LEN];
+                snprintf(url, sizeof(url), "%s/%s", app->pkg.repo_url, e->filename);
+                char local_path[DIR_NAME_MAX];
+                snprintf(local_path, sizeof(local_path), PKG_INSTALL_PATH "/%s", e->filename);
+                storage_simply_mkdir(app->storage, PKG_INSTALL_PATH);
+
+                if(!pkg_wifi_download(app, url, local_path)) {
+                    terminal_printf(app, "  Failed to download %s\n", e->name);
+                    failed++;
+                    continue;
+                }
+                has_local = true;
+            }
+
+            if(!has_local) {
+                terminal_printf(app, "  Skipping %s (no .fap)\n", e->name);
+                failed++;
+                continue;
+            }
+
+            // Install
+            char src[DIR_NAME_MAX];
+            snprintf(src, sizeof(src), PKG_INSTALL_PATH "/%s", e->filename);
+            char dest_dir[DIR_NAME_MAX];
+            snprintf(dest_dir, sizeof(dest_dir), PKG_APPS_DIR "/%s", e->category);
+            storage_simply_mkdir(app->storage, PKG_APPS_DIR);
+            storage_simply_mkdir(app->storage, dest_dir);
+
+            char dest[DIR_NAME_MAX];
+            snprintf(dest, sizeof(dest), "%s/%s", dest_dir, e->filename);
+            storage_simply_remove(app->storage, dest);
+
+            if(storage_common_copy(app->storage, src, dest) == FSE_OK) {
+                terminal_printf(app, "  Installed %s\n", e->name);
+                installed++;
+            } else {
+                terminal_printf(app, "  Failed %s\n", e->name);
+                failed++;
+            }
+        }
+
+        terminal_printf(app, "Done: %lu installed, %lu failed\n", installed, failed);
+
+    } else if(strcmp(subcmd, "repo") == 0) {
+        if(subargs) {
+            strlcpy(app->pkg.repo_url, subargs, sizeof(app->pkg.repo_url));
+            // Save to file
+            File* file = storage_file_alloc(app->storage);
+            const char* config_path = PKG_INSTALL_PATH "/repo_url.txt";
+            storage_simply_mkdir(app->storage, PKG_INSTALL_PATH);
+            if(storage_file_open(file, config_path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+                storage_file_write(file, subargs, strlen(subargs));
+                storage_file_close(file);
+                terminal_println(app, "Repo URL saved");
+            } else {
+                terminal_println(app, "Failed to save URL");
+            }
+            storage_file_free(file);
+        }
+        terminal_printf(app, "Repo: %s\n", app->pkg.repo_url);
+
+    } else {
+        terminal_printf(app, "pkg: unknown command '%s'\n", subcmd);
+        terminal_println(app, "Run 'pkg' for help");
+    }
+}
+
 // --- Command Dispatcher ---
 
 static void terminal_execute(TerminalApp* app, const char* input) {
@@ -722,6 +1275,8 @@ static void terminal_execute(TerminalApp* app, const char* input) {
         cmd_wifi_connect(app);
     } else if(strcmp(cmd, "wget") == 0) {
         cmd_wget(app, args);
+    } else if(strcmp(cmd, "pkg") == 0 || strcmp(cmd, "apt") == 0) {
+        cmd_pkg(app, args);
     } else {
         terminal_printf(app, "%s: unknown command\n", cmd);
         terminal_println(app, "Type 'help' for commands");
@@ -840,6 +1395,9 @@ int32_t terminal_app(void* p) {
     UNUSED(p);
 
     TerminalApp* app = terminal_alloc();
+
+    // Load package manager config
+    pkg_load_repo_url(app);
 
     // Try WiFi
     if(wifi_init(&app->wifi)) {
