@@ -9,29 +9,27 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      FBT_NO_SYNC: 1
+      FBT_GIT_SUBMODULE_SHALLOW: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          fetch-depth: 1
 
       - name: Cache toolchain
         uses: actions/cache@v4
         with:
           path: toolchain
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('scripts/toolchain/fbtenv.sh') }}
+          key: ${{ runner.os }}-toolchain-v39-${{ runner.arch }}
 
       - name: Build firmware
-        run: ./fbt COMPACT=1 DEBUG=0 FBT_NO_SYNC=1 fw_dist
+        run: ./fbt COMPACT=1 DEBUG=0 fw_dist
 
       - name: Build FAPs
-        run: ./fbt COMPACT=1 DEBUG=0 FBT_NO_SYNC=1 fap_dist
+        run: ./fbt COMPACT=1 DEBUG=0 fap_dist
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4

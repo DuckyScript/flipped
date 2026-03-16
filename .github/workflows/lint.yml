@@ -9,29 +9,27 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    env:
+      FBT_NO_SYNC: 1
+      FBT_GIT_SUBMODULE_SHALLOW: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          fetch-depth: 1
 
       - name: Cache toolchain
         uses: actions/cache@v4
         with:
           path: toolchain
-          key: ${{ runner.os }}-toolchain-${{ hashFiles('scripts/toolchain/fbtenv.sh') }}
+          key: ${{ runner.os }}-toolchain-v39-${{ runner.arch }}
 
       - name: Lint C code
-        run: ./fbt FBT_NO_SYNC=1 lint
+        run: ./fbt lint
 
       - name: Lint Python code
-        run: ./fbt FBT_NO_SYNC=1 lint_py
+        run: ./fbt lint_py
 
       - name: Lint image assets
-        run: ./fbt FBT_NO_SYNC=1 lint_img
+        run: ./fbt lint_img
