@@ -1,0 +1,9 @@
+App(
+    appid="dice_roller",
+    name="Dice Roller",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="dice_roller_app",
+    requires=["gui", "notification"],
+    stack_size=1 * 1024,
+    fap_category="Games",
+)

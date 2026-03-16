@@ -1,0 +1,37 @@
+name: Lint & Format Check
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: ${{ runner.os }}-toolchain-${{ hashFiles('scripts/toolchain/fbtenv.sh') }}
+
+      - name: Lint C code
+        run: ./fbt FBT_NO_SYNC=1 lint
+
+      - name: Lint Python code
+        run: ./fbt FBT_NO_SYNC=1 lint_py
+
+      - name: Lint image assets
+        run: ./fbt FBT_NO_SYNC=1 lint_img
