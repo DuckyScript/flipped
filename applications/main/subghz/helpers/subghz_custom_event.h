@@ -23,6 +23,17 @@ typedef enum {
     SubmenuIndexSecPlus_v2_315_00,
     SubmenuIndexSecPlus_v2_390_00,
 
+    //BruteForce SubmenuIndex
+    SubmenuIndexBruteForce,
+    SubmenuIndexBruteForcePrinceton_433,
+    SubmenuIndexBruteForceNiceFlo_433,
+    SubmenuIndexBruteForceCAME_433,
+    SubmenuIndexBruteForceLinear_300,
+    SubmenuIndexBruteForceGateTX_433,
+    SubmenuIndexBruteForceChamberlin_315,
+    SubmenuIndexBruteForceChamberlin_390,
+    SubmenuIndexBruteForceLinearDelta3_310,
+
     //SubGhzCustomEvent
     SubGhzCustomEventSceneDeleteSuccess = 100,
     SubGhzCustomEventSceneDelete,
