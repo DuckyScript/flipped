@@ -1,0 +1,9 @@
+App(
+    appid="flashlight",
+    name="Flashlight",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="flashlight_app",
+    requires=["gui", "notification"],
+    stack_size=1 * 1024,
+    fap_category="Tools",
+)
