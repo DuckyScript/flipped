@@ -1,0 +1,37 @@
+name: Sync Claude Branch to Dev
+
+on:
+  push:
+    branches:
+      - "claude/**"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge claude branch into dev
+        run: |
+          CLAUDE_BRANCH="${GITHUB_REF#refs/heads/}"
+          git checkout dev
+          git merge "$CLAUDE_BRANCH" --no-edit -m "merge $CLAUDE_BRANCH into dev"
+          git push origin dev
+
+      - name: Fast-forward claude branch to dev
+        run: |
+          CLAUDE_BRANCH="${GITHUB_REF#refs/heads/}"
+          git checkout "$CLAUDE_BRANCH"
+          git merge dev --ff-only
+          git push origin "$CLAUDE_BRANCH"
