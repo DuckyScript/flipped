@@ -1,0 +1,9 @@
+App(
+    appid="app_store",
+    name="App Store",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="app_store_app",
+    requires=["gui", "storage", "dialogs", "notification"],
+    stack_size=4 * 1024,
+    fap_category="Tools",
+)

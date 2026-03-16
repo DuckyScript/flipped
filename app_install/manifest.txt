@@ -1,0 +1,9 @@
+# Flipped App Store Manifest
+# Format: name|filename|category|description
+# Categories: Tools, Games, GPIO, NFC, SubGHz, RFID, Infrared, Bluetooth, Media, Misc
+#
+# Place .fap files in this directory alongside this manifest.
+# The App Store app reads this file to list available apps for installation.
+#
+# Example:
+# My Cool App|my_cool_app.fap|Tools|A cool utility app
