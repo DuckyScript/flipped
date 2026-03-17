@@ -3,7 +3,13 @@
 # Categories: Tools, Games, GPIO, NFC, SubGHz, RFID, Infrared, Bluetooth, Media, Misc
 #
 # Place .fap files in this directory alongside this manifest.
-# The App Store app reads this file to list available apps for installation.
+# The App Store and Terminal (pkg) read this file to list available apps.
 #
-# Example:
-# My Cool App|my_cool_app.fap|Tools|A cool utility app
+App Store|app_store.fap|Tools|Browse and install apps from SD or WiFi
+Terminal|terminal.fap|Tools|Command line with file ops and package manager
+Flashlight|flashlight.fap|Tools|Use the LED as a flashlight
+Stopwatch|stopwatch.fap|Tools|Simple stopwatch timer
+Tally Counter|tally_counter.fap|Tools|Count things with up/down buttons
+Morse Code|morse_code.fap|Tools|Morse code encoder and decoder
+Dice Roller|dice_roller.fap|Games|Roll virtual dice (d4 d6 d8 d10 d12 d20)
+Custom BLE Beacon|custom_ble_beacon.fap|Bluetooth|Create custom BLE advertisement beacons
