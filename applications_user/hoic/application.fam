@@ -1,0 +1,9 @@
+App(
+    appid="hoic",
+    name="HOIC",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="hoic_app",
+    requires=["gui", "storage", "notification"],
+    stack_size=8 * 1024,
+    fap_category="WiFi",
+)

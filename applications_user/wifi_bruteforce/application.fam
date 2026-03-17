@@ -1,0 +1,9 @@
+App(
+    appid="wifi_bruteforce",
+    name="WiFi Bruteforce",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="wifi_bruteforce_app",
+    requires=["gui", "storage", "dialogs", "notification"],
+    stack_size=8 * 1024,
+    fap_category="WiFi",
+)

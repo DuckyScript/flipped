@@ -1,0 +1,9 @@
+App(
+    appid="wifi_deauth",
+    name="WiFi Deauth",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="wifi_deauth_app",
+    requires=["gui", "storage", "notification"],
+    stack_size=8 * 1024,
+    fap_category="WiFi",
+)
