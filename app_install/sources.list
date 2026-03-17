@@ -1,0 +1,10 @@
+# Flipped Package Sources
+# One repository URL per line. Each source must host a manifest.txt file.
+# Lines starting with # are comments.
+#
+# Default source:
+https://raw.githubusercontent.com/DuckyScript/flipped/dev/app_install
+#
+# Add more sources below, e.g.:
+# https://example.com/flipper-apps
+# https://raw.githubusercontent.com/user/repo/main/apps
