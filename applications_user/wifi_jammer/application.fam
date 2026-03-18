@@ -1,0 +1,11 @@
+App(
+    appid="wifi_jammer",
+    name="WiFi Jammer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="wifi_jammer_app",
+    requires=["gui"],
+    stack_size=2 * 1024,
+    order=40,
+    fap_category="Tools",
+    fap_icon="wifi_jammer.png",
+)
