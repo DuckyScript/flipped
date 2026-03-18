@@ -16,7 +16,7 @@ void desktop_settings_scene_device_name_text_input_callback(void* context) {
 void desktop_settings_scene_device_name_on_enter(void* context) {
     DesktopSettingsApp* app = context;
     const char* current_name = furi_hal_version_get_name_ptr();
-    
+
     if(current_name) {
         strlcpy(app->text_store, current_name, sizeof(app->text_store));
     } else {

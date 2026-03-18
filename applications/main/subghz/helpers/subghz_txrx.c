@@ -425,7 +425,8 @@ void subghz_txrx_hopper_update(SubGhzTxRx* instance) {
                 preset_name,
                 instance->preset->frequency,
                 subghz_setting_get_preset_data(instance->setting, instance->hopper_idx_preset),
-                subghz_setting_get_preset_data_size(instance->setting, instance->hopper_idx_preset));
+                subghz_setting_get_preset_data_size(
+                    instance->setting, instance->hopper_idx_preset));
         } else {
             instance->preset->frequency = subghz_setting_get_hopper_frequency(
                 instance->setting, instance->hopper_idx_frequency);

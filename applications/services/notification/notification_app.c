@@ -279,8 +279,9 @@ static void notification_process_notification_message(
             led_active = true;
             furi_hal_light_blink_start(
                 notification_message->data.led_blink.color,
-                furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode) ? 0 :
-                                                                     app->settings.led_brightness * 255,
+                furi_hal_rtc_is_flag_set(FuriHalRtcFlagStealthMode) ?
+                    0 :
+                    app->settings.led_brightness * 255,
                 notification_message->data.led_blink.on_time,
                 notification_message->data.led_blink.period);
             reset_mask |= reset_blink_mask;

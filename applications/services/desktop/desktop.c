@@ -517,7 +517,8 @@ int32_t desktop_srv(void* p) {
     Desktop* desktop = desktop_alloc();
 
     if(furi_hal_input_is_pressed(InputKeyOk) && furi_hal_input_is_pressed(InputKeyUp)) {
-        loader_start_detached_with_gui_error(desktop->loader, "Bad USB", EXT_PATH("badusb/rickroll_mac.txt"));
+        loader_start_detached_with_gui_error(
+            desktop->loader, "Bad USB", EXT_PATH("badusb/rickroll_mac.txt"));
     }
 
     desktop_init_settings(desktop);

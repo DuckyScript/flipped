@@ -15,14 +15,14 @@ typedef struct {
 } BruteForceProtocol;
 
 static const BruteForceProtocol brute_force_protocols[] = {
-    [0] = {"Princeton", "AM650", 433920000, 24, 0x100, 400},  // 8-bit device code, brute 256
-    [1] = {"Nice FLO", "AM650", 433920000, 12, 0x1000, 0},    // 12-bit, 4096 keys
-    [2] = {"CAME", "AM650", 433920000, 12, 0x1000, 0},        // 12-bit, 4096 keys
-    [3] = {"Linear", "AM650", 300000000, 10, 0x400, 0},       // 10-bit, 1024 keys
-    [4] = {"GateTX", "AM650", 433920000, 24, 0x100, 0},       // 8-bit brute portion
-    [5] = {"Cham_Code", "AM650", 315000000, 9, 0x200, 0},     // 9-bit, 512 keys
-    [6] = {"Cham_Code", "AM650", 390000000, 9, 0x200, 0},     // 9-bit, 512 keys
-    [7] = {"LinearDelta3", "AM650", 310000000, 8, 0x100, 0},  // 8-bit, 256 keys
+    [0] = {"Princeton", "AM650", 433920000, 24, 0x100, 400}, // 8-bit device code, brute 256
+    [1] = {"Nice FLO", "AM650", 433920000, 12, 0x1000, 0}, // 12-bit, 4096 keys
+    [2] = {"CAME", "AM650", 433920000, 12, 0x1000, 0}, // 12-bit, 4096 keys
+    [3] = {"Linear", "AM650", 300000000, 10, 0x400, 0}, // 10-bit, 1024 keys
+    [4] = {"GateTX", "AM650", 433920000, 24, 0x100, 0}, // 8-bit brute portion
+    [5] = {"Cham_Code", "AM650", 315000000, 9, 0x200, 0}, // 9-bit, 512 keys
+    [6] = {"Cham_Code", "AM650", 390000000, 9, 0x200, 0}, // 9-bit, 512 keys
+    [7] = {"LinearDelta3", "AM650", 310000000, 8, 0x100, 0}, // 8-bit, 256 keys
 };
 
 typedef struct {
@@ -229,8 +229,7 @@ bool subghz_scene_brute_force_on_event(void* context, SceneManagerEvent event) {
                 subghz->scene_manager, SubGhzSceneStart);
             return true;
         }
-        scene_manager_search_and_switch_to_previous_scene(
-            subghz->scene_manager, SubGhzSceneStart);
+        scene_manager_search_and_switch_to_previous_scene(subghz->scene_manager, SubGhzSceneStart);
         return true;
     } else if(event.type == SceneManagerEventTypeCustom) {
         uint8_t idx = subghz_scene_brute_force_event_to_index(event.event);

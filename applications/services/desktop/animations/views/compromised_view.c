@@ -40,7 +40,7 @@ static void compromised_view_draw_callback(Canvas* canvas, void* model_) {
         canvas_set_font(canvas, FontPrimary);
         canvas_draw_str_aligned(canvas, 64, 25, AlignCenter, AlignCenter, "SYSTEM");
         canvas_draw_str_aligned(canvas, 64, 40, AlignCenter, AlignCenter, "COMPROMISED");
-        
+
         // Progress bar
         canvas_draw_frame(canvas, 20, 50, 88, 7);
         uint8_t progress = (model->frame - 30) * 4;
@@ -84,7 +84,8 @@ CompromisedView* compromised_view_alloc(void) {
     view_set_draw_callback(instance->view, compromised_view_draw_callback);
     view_set_input_callback(instance->view, compromised_view_input_callback);
 
-    instance->timer = furi_timer_alloc(compromised_view_timer_callback, FuriTimerTypePeriodic, instance);
+    instance->timer =
+        furi_timer_alloc(compromised_view_timer_callback, FuriTimerTypePeriodic, instance);
 
     with_view_model(
         instance->view,
@@ -110,12 +111,16 @@ View* compromised_view_get_view(CompromisedView* compromised_view) {
     return compromised_view->view;
 }
 
-void compromised_view_set_done_callback(CompromisedView* compromised_view, CompromisedViewDoneCallback callback, void* context) {
+void compromised_view_set_done_callback(
+    CompromisedView* compromised_view,
+    CompromisedViewDoneCallback callback,
+    void* context) {
     compromised_view->done_callback = callback;
     compromised_view->done_callback_context = context;
 }
 
 void compromised_view_start(CompromisedView* compromised_view) {
-    with_view_model(compromised_view->view, CompromisedViewModel * model, { model->frame = 0; }, true);
+    with_view_model(
+        compromised_view->view, CompromisedViewModel * model, { model->frame = 0; }, true);
     furi_timer_start(compromised_view->timer, 100);
 }

@@ -15,5 +15,6 @@ Dice Roller|dice_roller.fap|Games|Roll virtual dice (d4 d6 d8 d10 d12 d20)
 Custom BLE Beacon|custom_ble_beacon.fap|Bluetooth|Create custom BLE advertisement beacons
 CHIP-8|chip8.fap|Games|CHIP-8 game emulator with ROM file browser
 WiFi Bruteforce|wifi_bruteforce.fap|WiFi|Brute-force WiFi passwords with wordlists
-WiFi Deauth|wifi_deauth.fap|WiFi|Scan networks and send deauth frames
+WiFi Jammer|wifi_jammer.fap|WiFi|Jam WiFi networks and beacon flood
+Sub-GHz Jammer|subghz_jammer.fap|Tools|Jam Sub-GHz signals (CW/Noise)
 HOIC|hoic.fap|WiFi|High Orbit Ion Cannon network stress tester
