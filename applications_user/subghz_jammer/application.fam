@@ -1,0 +1,11 @@
+App(
+    appid="subghz_jammer",
+    name="Sub-GHz Jammer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="subghz_jammer_app",
+    requires=["gui"],
+    stack_size=2 * 1024,
+    order=50,
+    fap_category="Tools",
+    fap_icon="subghz_jammer.png",
+)
